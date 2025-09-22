@@ -1,27 +1,78 @@
 "use client";
 import Image from "next/image";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+const AUTH_API_URL = "http://192.168.0.107:8000/api"
 
 export default function LoginPage() {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [isLoginView, setIsLoginView] = useState(true);
+  const router = useRouter();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const url = `${AUTH_API_URL}/auth-token/`
+
+    try{
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({username, password}),
+      })
+
+      const data = await res.json();
+
+      if(!res.ok){
+        throw new Error(data.detail || "Falha na autenticação")
+      }
+
+      if(isLoginView){
+        localStorage.setItem('authToken', data.token);
+        router.push('/'); //talvez eu deva alterar o camino para o login
+      } else{
+        alert("Usuário registrado com sucesso! Por favor, faça o login")
+        setIsLoginView(true)
+      }
+    } catch (err){
+      setError(err.message);
+    } finally{
+      setLoading(false)
+    }
+  }
+
+  const handleRegister = () => {
+    window.location.href = '/register';
+  };
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#1e293b]">
       <div className="w-full max-w-sm bg-[#2c3e5a] shadow-xl rounded-2xl p-8">
         {/* Logo */}
         <div className="flex justify-center mb-6">
           <Image
-            src="/favi.svg" // usa a sua logo da pasta /public
+            src="/taskMy.ico"
             alt="TaskMy Logo"
-            width={100
-
-            }
+            width={100}
             height={60}
           />
         </div>
 
         {/* Formulário */}
-        <form className="flex flex-col gap-4">
+        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+          {error && <div className="text-red-500 text-center">{error}</div>}
           <input
             type="text"
             placeholder="Login"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
@@ -29,10 +80,12 @@ export default function LoginPage() {
             <input
               type="password"
               placeholder="Senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <a
-              href="#"
+              href="recuperation/"
               className="text-sm text-blue-500 hover:underline self-end"
             >
               Esqueci minha senha
@@ -41,13 +94,15 @@ export default function LoginPage() {
 
           <button
             type="submit"
+            disabled={loading}
             className="w-full bg-blue-600 text-white font-medium py-2 rounded-xl hover:bg-blue-700 transition"
           >
-            Entrar
+            {loading ? "Entrando...": 'Entrar'}
           </button>
 
           <button
             type="button"
+            onClick={handleRegister}
             className="w-full border border-blue-600 text-blue-600 font-medium py-2 rounded-xl hover:bg-blue-50 transition"
           >
             Cadastre-se
