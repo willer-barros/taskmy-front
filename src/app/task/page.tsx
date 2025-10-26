@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/solid";
+import Link from 'next/link';
+import Image from 'next/image'; 
 import { DndContext } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -156,9 +158,18 @@ const App = () => {
   return (
     <div className="bg-slate-900 min-h-screen text-white font-sans p-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600">
-          TaskMy
-        </h1>
+
+        <Link href="/" className="flex items-center">
+          <Image 
+             src="/taskMy_branco_logo_inicial.svg" 
+                            alt="Logo Willer Barros"
+                            width={200} // Defina a largura
+                            height={100} // Defina a altura
+          
+          />
+              
+        </Link>
+
         <div className="flex gap-4">
           <button className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-200">
             Login
