@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckSquare, LayoutDashboard, Headphones, Settings, ChevronDown, User, LogOut, Menu, X } from 'lucide-react';
+import { CheckSquare, LayoutDashboard, Headphones, Settings, ChevronDown, User, LogIn,LogOut, Menu, X } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 
@@ -14,11 +14,12 @@ export default function TaskmySidebar({ children }) {
     { id: 'dashboards', label: 'Dashboards', icon: LayoutDashboard, href: '/dashboards' },
     { id: 'suporte', label: 'Suporte', icon: Headphones, href: '/suporte' },
     { id: 'settings', label: 'Configurações', icon: Settings, href: '/settings' },
+    { id: 'login', label: 'Login', icon: LogIn, href: '/register' },
   ];
 
   const userProfile = {
-    name: 'João Silva',
-    email: 'joao@taskmy.com',
+    name: 'Willer Barros',
+    email: 'willerbarros@taskmy.com',
     avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
   };
 

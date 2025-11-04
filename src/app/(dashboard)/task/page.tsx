@@ -159,25 +159,7 @@ const App = () => {
     <div className="bg-slate-900 min-h-screen text-white font-sans p-8">
       <div className="flex justify-between items-center mb-6">
 
-        <Link href="/" className="flex items-center">
-          <Image 
-             src="/taskMy_branco_logo_inicial.svg" 
-                            alt="Logo Willer Barros"
-                            width={200} // Defina a largura
-                            height={100} // Defina a altura
-          
-          />
-              
-        </Link>
-
-        <div className="flex gap-4">
-          <button className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-200">
-            Login
-          </button>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-200">
-            Register
-          </button>
-        </div>
+        
       </div>
 
       <div className="bg-slate-800 p-6 rounded-xl shadow-lg mb-8">
