@@ -37,7 +37,7 @@ export default function LoginPage() {
 
       if(isLoginView){
         localStorage.setItem('authToken', data.token);
-        router.push('/'); //talvez eu deva alterar o camino para o login
+        router.push('/task'); //talvez eu deva alterar o camino para o login
       } else{
         alert("Usuário registrado com sucesso! Por favor, faça o login")
         setIsLoginView(true)
@@ -86,7 +86,7 @@ export default function LoginPage() {
             />
             <a
               href="recuperation/"
-              className="text-sm text-blue-500 hover:underline self-end"
+              className="text-sm text-white hover:underline self-end"
             >
               Esqueci minha senha
             </a>
@@ -95,7 +95,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white font-medium py-2 rounded-xl hover:bg-blue-700 transition"
+            className="w-full bg-green-500 text-white font-medium py-2 rounded-xl hover:bg-green-700 transition"
           >
             {loading ? "Entrando...": 'Entrar'}
           </button>
@@ -103,7 +103,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleRegister}
-            className="w-full border border-blue-600 text-blue-600 font-medium py-2 rounded-xl hover:bg-blue-50 transition"
+            className="w-full border border-white text-white font-medium py-2 rounded-xl hover:bg-rose-400 transition"
           >
             Cadastre-se
           </button>

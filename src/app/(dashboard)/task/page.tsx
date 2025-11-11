@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PlusIcon, TrashIcon, XMarkIcon, CalendarIcon, FlagIcon, ChevronDownIcon } from "@heroicons/react/24/solid";
 import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import {
@@ -11,6 +11,101 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Configuração da API
+const API_URL = 'http://192.168.0.107:8000/api';
+
+const getAuthToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('authToken');
+  }
+  return null;
+};
+
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Token ${getAuthToken()}`,
+});
+
+// API Functions
+const api = {
+  boards: {
+    list: async () => {
+      const response = await fetch(`${API_URL}/boards/`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Failed to fetch boards');
+      return response.json();
+    },
+    get: async (boardId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/`, { headers: getHeaders() });
+      if (!response.ok) throw new Error('Failed to fetch board');
+      return response.json();
+    },
+    create: async (data) => {
+      const response = await fetch(`${API_URL}/boards/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to create board');
+      return response.json();
+    },
+    delete: async (boardId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete board');
+      return true;
+    },
+  },
+  lists: {
+    create: async (boardId, data) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to create list');
+      return response.json();
+    },
+    delete: async (boardId, listId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete list');
+      return true;
+    },
+  },
+  cards: {
+    create: async (boardId, listId, data) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error('Failed to create card');
+      return response.json();
+    },
+    move: async (boardId, oldListId, cardId, newListId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${oldListId}/cards/${cardId}/move/`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({ list_id: newListId }),
+      });
+      if (!response.ok) throw new Error('Failed to move card');
+      return response.json();
+    },
+    delete: async (boardId, listId, cardId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/${cardId}/`, {
+        method: 'DELETE',
+        headers: getHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete card');
+      return true;
+    },
+  },
+};
+
 // Níveis de prioridade
 const PRIORITY_LEVELS = {
   low: { label: "Baixa", color: "bg-green-500", textColor: "text-green-400", borderColor: "border-green-500" },
@@ -18,81 +113,6 @@ const PRIORITY_LEVELS = {
   high: { label: "Alta", color: "bg-orange-500", textColor: "text-orange-400", borderColor: "border-orange-500" },
   urgent: { label: "Urgente", color: "bg-red-500", textColor: "text-red-400", borderColor: "border-red-500" },
 };
-
-// Mock data inicial
-const initialBoards = [
-  {
-    id: "board-1",
-    title: "Projeto Alpha",
-    priority: "high",
-    startDate: "2025-01-15",
-    endDate: "2025-03-30",
-    lists: [
-      {
-        id: "list-1",
-        title: "A Fazer",
-        cards: [
-          {
-            id: "card-1",
-            title: "Configurar o banco de dados",
-            description: "Configuração inicial do PostgreSQL.",
-          },
-          {
-            id: "card-2",
-            title: "Criar o front-end",
-            description: "Desenvolver a interface com Next.js e Tailwind.",
-          },
-        ],
-      },
-      {
-        id: "list-2",
-        title: "Em Andamento",
-        cards: [
-          {
-            id: "card-3",
-            title: "Modelar as classes",
-            description: "Definir os modelos Django para Boards, Lists e Cards.",
-          },
-        ],
-      },
-      {
-        id: "list-3",
-        title: "Concluído",
-        cards: [],
-      },
-    ],
-  },
-  {
-    id: "board-2",
-    title: "Projeto Beta",
-    priority: "medium",
-    startDate: "2025-02-01",
-    endDate: "2025-04-15",
-    lists: [
-      {
-        id: "list-4",
-        title: "A Fazer",
-        cards: [
-          {
-            id: "card-5",
-            title: "Pesquisa de mercado",
-            description: "Analisar concorrentes e público-alvo.",
-          },
-        ],
-      },
-      {
-        id: "list-5",
-        title: "Em Andamento",
-        cards: [],
-      },
-      {
-        id: "list-6",
-        title: "Concluído",
-        cards: [],
-      },
-    ],
-  },
-];
 
 const SortableItem = ({ card, onDelete }) => {
   const {
@@ -132,16 +152,19 @@ const SortableItem = ({ card, onDelete }) => {
           <TrashIcon className="h-4 w-4" />
         </button>
       </div>
-      <p className="text-sm text-slate-400">
-        {card.description}
-      </p>
+      {card.description && (
+        <p className="text-sm text-slate-400">
+          {card.description}
+        </p>
+      )}
     </div>
   );
 };
 
 const App = () => {
-  const [boards, setBoards] = useState(initialBoards);
-  const [activeBoardId, setActiveBoardId] = useState(boards[0].id);
+  const [boards, setBoards] = useState([]);
+  const [activeBoardId, setActiveBoardId] = useState(null);
+  const [activeBoard, setActiveBoard] = useState(null);
   const [activeCard, setActiveCard] = useState(null);
   const [showNewCardForm, setShowNewCardForm] = useState(null);
   const [showNewListForm, setShowNewListForm] = useState(false);
@@ -152,11 +175,10 @@ const App = () => {
   const [newProjectData, setNewProjectData] = useState({
     title: "",
     priority: "medium",
-    startDate: "",
-    endDate: "",
+    start_date: "",
+    end_date: "",
   });
-
-  const activeBoard = boards.find((board) => board.id === activeBoardId);
+  const [loading, setLoading] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -166,178 +188,171 @@ const App = () => {
     })
   );
 
+  // Carregar lista de boards ao montar
+  useEffect(() => {
+    loadBoards();
+  }, []);
+
+  // Carregar board completo quando selecionar um
+  useEffect(() => {
+    if (activeBoardId) {
+      loadBoardDetail(activeBoardId);
+    }
+  }, [activeBoardId]);
+
+  const loadBoards = async () => {
+    try {
+      setLoading(true);
+      const data = await api.boards.list();
+      setBoards(data);
+      if (data.length > 0 && !activeBoardId) {
+        setActiveBoardId(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading boards:', error);
+      alert('Erro ao carregar projetos. Verifique se está autenticado.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadBoardDetail = async (boardId) => {
+    try {
+      const data = await api.boards.get(boardId);
+      setActiveBoard(data);
+    } catch (error) {
+      console.error('Error loading board detail:', error);
+      alert('Erro ao carregar detalhes do projeto.');
+    }
+  };
+
   const handleDragStart = (event) => {
     const { active } = event;
-    const card = activeBoard.lists
-      .flatMap(list => list.cards)
+    const card = activeBoard?.lists
+      ?.flatMap(list => list.cards)
       .find(c => c.id === active.id);
     setActiveCard(card);
   };
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event;
     setActiveCard(null);
 
-    if (!over) return;
+    if (!over || !activeBoard) return;
 
+    // Encontrar a lista de origem
     let startListId = null;
+    let startList = null;
     for (const list of activeBoard.lists) {
       if (list.cards.find(card => card.id === active.id)) {
         startListId = list.id;
+        startList = list;
         break;
       }
     }
 
+    // Determinar a lista de destino
     let endListId = over.id;
+    let endList = null;
     for (const list of activeBoard.lists) {
       if (list.cards.find(card => card.id === over.id)) {
         endListId = list.id;
+        endList = list;
+        break;
+      }
+      if (list.id === over.id) {
+        endListId = list.id;
+        endList = list;
         break;
       }
     }
 
-    if (!startListId) return;
+    if (!startListId || !endListId) return;
 
+    // Se moveu para outra lista, chama a API
     if (startListId !== endListId) {
-      const startList = activeBoard.lists.find((list) => list.id === startListId);
-      const endList = activeBoard.lists.find((list) => list.id === endListId);
-      const cardToMove = startList.cards.find((card) => card.id === active.id);
-
-      const newStartCards = startList.cards.filter((card) => card.id !== active.id);
-      const newEndCards = [...endList.cards, cardToMove];
-
-      const newLists = activeBoard.lists.map((list) => {
-        if (list.id === startListId) {
-          return { ...list, cards: newStartCards };
-        }
-        if (list.id === endListId) {
-          return { ...list, cards: newEndCards };
-        }
-        return list;
-      });
-
-      setBoards(
-        boards.map((board) =>
-          board.id === activeBoardId ? { ...board, lists: newLists } : board
-        )
-      );
-      return;
-    }
-
-    const listToUpdate = activeBoard.lists.find((list) => list.id === startListId);
-    const oldIndex = listToUpdate.cards.findIndex((card) => card.id === active.id);
-    const newIndex = listToUpdate.cards.findIndex((card) => card.id === over.id);
-
-    if (oldIndex !== newIndex) {
-      const newCards = arrayMove(listToUpdate.cards, oldIndex, newIndex);
-
-      const newLists = activeBoard.lists.map((list) =>
-        list.id === listToUpdate.id ? { ...list, cards: newCards } : list
-      );
-
-      setBoards(
-        boards.map((board) =>
-          board.id === activeBoardId ? { ...board, lists: newLists } : board
-        )
-      );
+      try {
+        await api.cards.move(activeBoard.id, startListId, active.id, endListId);
+        // Recarrega o board após mover
+        await loadBoardDetail(activeBoard.id);
+      } catch (error) {
+        console.error('Error moving card:', error);
+        alert('Erro ao mover card.');
+      }
     }
   };
 
-  const handleAddCard = (listId) => {
+  const handleAddCard = async (listId) => {
     if (!newCardData.title.trim()) return;
 
-    const newCard = {
-      id: `card-${Date.now()}`,
-      title: newCardData.title,
-      description: newCardData.description,
-    };
-
-    const newLists = activeBoard.lists.map((list) =>
-      list.id === listId
-        ? { ...list, cards: [...list.cards, newCard] }
-        : list
-    );
-
-    setBoards(
-      boards.map((board) =>
-        board.id === activeBoardId ? { ...board, lists: newLists } : board
-      )
-    );
-
-    setNewCardData({ title: "", description: "" });
-    setShowNewCardForm(null);
+    try {
+      await api.cards.create(activeBoard.id, listId, newCardData);
+      setNewCardData({ title: "", description: "" });
+      setShowNewCardForm(null);
+      // Recarrega o board
+      await loadBoardDetail(activeBoard.id);
+    } catch (error) {
+      console.error('Error creating card:', error);
+      alert('Erro ao criar card.');
+    }
   };
 
-  const handleDeleteCard = (cardId) => {
-    const newLists = activeBoard.lists.map((list) => ({
-      ...list,
-      cards: list.cards.filter((card) => card.id !== cardId),
-    }));
+  const handleDeleteCard = async (cardId) => {
+    const list = activeBoard.lists.find(l => l.cards.some(c => c.id === cardId));
+    if (!list) return;
 
-    setBoards(
-      boards.map((board) =>
-        board.id === activeBoardId ? { ...board, lists: newLists } : board
-      )
-    );
+    try {
+      await api.cards.delete(activeBoard.id, list.id, cardId);
+      await loadBoardDetail(activeBoard.id);
+    } catch (error) {
+      console.error('Error deleting card:', error);
+      alert('Erro ao deletar card.');
+    }
   };
 
-  const handleAddList = () => {
+  const handleAddList = async () => {
     if (!newListTitle.trim()) return;
 
-    const newList = {
-      id: `list-${Date.now()}`,
-      title: newListTitle,
-      cards: [],
-    };
-
-    setBoards(
-      boards.map((board) =>
-        board.id === activeBoardId
-          ? { ...board, lists: [...board.lists, newList] }
-          : board
-      )
-    );
-
-    setNewListTitle("");
-    setShowNewListForm(false);
+    try {
+      await api.lists.create(activeBoard.id, { title: newListTitle });
+      setNewListTitle("");
+      setShowNewListForm(false);
+      await loadBoardDetail(activeBoard.id);
+    } catch (error) {
+      console.error('Error creating list:', error);
+      alert('Erro ao criar lista.');
+    }
   };
 
-  const handleDeleteList = (listId) => {
-    const newLists = activeBoard.lists.filter((list) => list.id !== listId);
-
-    setBoards(
-      boards.map((board) =>
-        board.id === activeBoardId ? { ...board, lists: newLists } : board
-      )
-    );
+  const handleDeleteList = async (listId) => {
+    try {
+      await api.lists.delete(activeBoard.id, listId);
+      await loadBoardDetail(activeBoard.id);
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      alert('Erro ao deletar lista.');
+    }
   };
 
-  const handleCreateProject = () => {
-    if (!newProjectData.title.trim() || !newProjectData.startDate || !newProjectData.endDate) {
+  const handleCreateProject = async () => {
+    if (!newProjectData.title.trim() || !newProjectData.start_date || !newProjectData.end_date) {
       alert("Preencha todos os campos obrigatórios!");
       return;
     }
 
-    const newBoard = {
-      id: `board-${Date.now()}`,
-      title: newProjectData.title,
-      priority: newProjectData.priority,
-      startDate: newProjectData.startDate,
-      endDate: newProjectData.endDate,
-      lists: [
-        { id: `list-${Date.now()}-1`, title: "A Fazer", cards: [] },
-        { id: `list-${Date.now()}-2`, title: "Em Andamento", cards: [] },
-        { id: `list-${Date.now()}-3`, title: "Concluído", cards: [] },
-      ],
-    };
-
-    setBoards([...boards, newBoard]);
-    setActiveBoardId(newBoard.id);
-    setNewProjectData({ title: "", priority: "medium", startDate: "", endDate: "" });
-    setShowNewProjectModal(false);
+    try {
+      const newBoard = await api.boards.create(newProjectData);
+      await loadBoards();
+      setActiveBoardId(newBoard.id);
+      setNewProjectData({ title: "", priority: "medium", start_date: "", end_date: "" });
+      setShowNewProjectModal(false);
+    } catch (error) {
+      console.error('Error creating board:', error);
+      alert('Erro ao criar projeto.');
+    }
   };
 
-  const handleDeleteProject = () => {
+  const handleDeleteProject = async () => {
     if (boards.length <= 1) {
       alert("Você precisa ter pelo menos um projeto!");
       return;
@@ -345,20 +360,52 @@ const App = () => {
     
     const confirmed = confirm(`Tem certeza que deseja deletar o projeto "${activeBoard.title}"?`);
     if (confirmed) {
-      const newBoards = boards.filter(b => b.id !== activeBoardId);
-      setBoards(newBoards);
-      setActiveBoardId(newBoards[0].id);
+      try {
+        await api.boards.delete(activeBoard.id);
+        await loadBoards();
+        if (boards.length > 1) {
+          const newBoard = boards.find(b => b.id !== activeBoard.id);
+          setActiveBoardId(newBoard.id);
+        }
+      } catch (error) {
+        console.error('Error deleting board:', error);
+        alert('Erro ao deletar projeto.');
+      }
     }
   };
 
-const calculateDaysRemaining = () => {
-  const today = new Date();
-  const end = new Date(activeBoard.endDate);
-  const diffTime = end.getTime() - today.getTime(); // ✅ agora é um número
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays;
-};
+  const calculateDaysRemaining = () => {
+    if (!activeBoard?.end_date) return 0;
+    const today = new Date();
+    const end = new Date(activeBoard.end_date);
+    const diffTime = end.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#1e293b] flex items-center justify-center">
+        <div className="text-white text-xl">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (!activeBoard) {
+    return (
+      <div className="min-h-screen bg-[#1e293b] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-white text-xl mb-4">Nenhum projeto encontrado</p>
+          <button
+            onClick={() => setShowNewProjectModal(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium"
+          >
+            Criar Primeiro Projeto
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const daysRemaining = calculateDaysRemaining();
 
@@ -399,7 +446,7 @@ const calculateDaysRemaining = () => {
                           <div className="flex-1 text-left">
                             <div className="font-medium">{board.title}</div>
                             <div className="text-xs text-slate-400 mt-1">
-                              {new Date(board.startDate).toLocaleDateString('pt-BR')} - {new Date(board.endDate).toLocaleDateString('pt-BR')}
+                              {new Date(board.start_date).toLocaleDateString('pt-BR')} - {new Date(board.end_date).toLocaleDateString('pt-BR')}
                             </div>
                           </div>
                           <span className={`text-xs px-2 py-1 rounded ${PRIORITY_LEVELS[board.priority].color}`}>
@@ -425,12 +472,12 @@ const calculateDaysRemaining = () => {
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5 text-slate-400" />
                 <span className="text-slate-400">Início:</span>
-                <span className="text-white font-medium">{new Date(activeBoard.startDate).toLocaleDateString('pt-BR')}</span>
+                <span className="text-white font-medium">{new Date(activeBoard.start_date).toLocaleDateString('pt-BR')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <CalendarIcon className="h-5 w-5 text-slate-400" />
                 <span className="text-slate-400">Término:</span>
-                <span className="text-white font-medium">{new Date(activeBoard.endDate).toLocaleDateString('pt-BR')}</span>
+                <span className="text-white font-medium">{new Date(activeBoard.end_date).toLocaleDateString('pt-BR')}</span>
               </div>
               <div className="flex items-center gap-2">
                 <FlagIcon className={`h-5 w-5 ${PRIORITY_LEVELS[activeBoard.priority].textColor}`} />
@@ -507,8 +554,8 @@ const calculateDaysRemaining = () => {
                   </label>
                   <input
                     type="date"
-                    value={newProjectData.startDate}
-                    onChange={(e) => setNewProjectData({ ...newProjectData, startDate: e.target.value })}
+                    value={newProjectData.start_date}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, start_date: e.target.value })}
                     className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -519,8 +566,8 @@ const calculateDaysRemaining = () => {
                   </label>
                   <input
                     type="date"
-                    value={newProjectData.endDate}
-                    onChange={(e) => setNewProjectData({ ...newProjectData, endDate: e.target.value })}
+                    value={newProjectData.end_date}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, end_date: e.target.value })}
                     className="w-full bg-slate-700 text-white px-4 py-3 rounded-lg border border-slate-600 focus:border-blue-500 focus:outline-none"
                   />
                 </div>
@@ -537,7 +584,7 @@ const calculateDaysRemaining = () => {
               <button
                 onClick={() => {
                   setShowNewProjectModal(false);
-                  setNewProjectData({ title: "", priority: "medium", startDate: "", endDate: "" });
+                  setNewProjectData({ title: "", priority: "medium", start_date: "", end_date: "" });
                 }}
                 className="px-6 py-3 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
               >
@@ -684,9 +731,11 @@ const calculateDaysRemaining = () => {
               <h4 className="font-semibold text-white mb-2">
                 {activeCard.title}
               </h4>
-              <p className="text-sm text-slate-400">
-                {activeCard.description}
-              </p>
+              {activeCard.description && (
+                <p className="text-sm text-slate-400">
+                  {activeCard.description}
+                </p>
+              )}
             </div>
           ) : null}
         </DragOverlay>
