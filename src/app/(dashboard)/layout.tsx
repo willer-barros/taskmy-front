@@ -1,5 +1,11 @@
 import TaskmySidebar from '../../components/TaskmySidebar';
+import ProtectedRoute from '../../components/ProtectedRoute';
 
 export default function DashboardLayout({ children }) {
-  return <TaskmySidebar>{children}</TaskmySidebar>;
+  return (
+    <ProtectedRoute>
+      <TaskmySidebar>{children}</TaskmySidebar>
+    </ProtectedRoute>
+
+  );
 }

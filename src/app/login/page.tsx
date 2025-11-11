@@ -30,6 +30,7 @@ export default function LoginPage() {
       })
 
       const data = await res.json();
+      console.log('✅ Token recebido:', data.token);
 
       if(!res.ok){
         throw new Error(data.detail || "Falha na autenticação")
@@ -37,6 +38,12 @@ export default function LoginPage() {
 
       if(isLoginView){
         localStorage.setItem('authToken', data.token);
+        
+        //mexido aqui
+        const savedToken = localStorage.getItem('authToken');
+        console.log('💾 Token salvo verificado:', savedToken);
+
+
         router.push('/task'); //talvez eu deva alterar o camino para o login
       } else{
         alert("Usuário registrado com sucesso! Por favor, faça o login")
@@ -44,6 +51,7 @@ export default function LoginPage() {
       }
     } catch (err){
       setError(err.message);
+      console.error('❌ Erro no login:', err);
     } finally{
       setLoading(false)
     }
