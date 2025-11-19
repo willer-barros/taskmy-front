@@ -17,7 +17,7 @@ const API_URL = 'http://192.168.0.107:8000/api';
 const getAuthToken = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('authToken');
-    console.log('🔑 Token recuperado:', token); // DEBUG
+    // console.log('🔑 Token recuperado:', token); // DEBUG
     return token;
   }
   return null;
@@ -25,7 +25,7 @@ const getAuthToken = () => {
 
 const getHeaders = () => {
   const token = getAuthToken();
-  console.log('📤 Enviando headers com token:', token); // DEBUG
+  // console.log('📤 Enviando headers com token:', token); // DEBUG
   return {
     'Content-Type': 'application/json',
     ...(token && { 'Authorization': `Token ${token}` }),
@@ -317,18 +317,30 @@ const App = () => {
   };
 
   const handleAddList = async () => {
-    if (!newListTitle.trim()) return;
+  if (!newListTitle.trim()) return;
 
-    try {
-      await api.lists.create(activeBoard.id, { title: newListTitle });
-      setNewListTitle("");
-      setShowNewListForm(false);
-      await loadBoardDetail(activeBoard.id);
-    } catch (error) {
-      console.error('Error creating list:', error);
-      alert('Erro ao criar lista.');
+  try {
+    console.log('🔵 Criando lista:', { title: newListTitle });
+    console.log('🔵 Board ID:', activeBoard.id);
+    
+    const result = await api.lists.create(activeBoard.id, { title: newListTitle });
+    
+    console.log('✅ Lista criada:', result);
+    setNewListTitle("");
+    setShowNewListForm(false);
+    await loadBoardDetail(activeBoard.id);
+  } catch (error) {
+    console.error('❌ Erro ao criar lista:', error);
+    
+    // Tentar pegar mais detalhes do erro
+    if (error.response) {
+      const errorData = await error.response.json();
+      console.error('❌ Detalhes do erro:', errorData);
     }
-  };
+    
+    alert('Erro ao criar lista.');
+  }
+};
 
   const handleDeleteList = async (listId) => {
     try {
