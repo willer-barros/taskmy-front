@@ -11,6 +11,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Users } from "lucide-react";
 
 // Configuração da API
 const API_URL = 'http://192.168.0.107:8000/api';
@@ -104,7 +105,38 @@ const api = {
       if (!response.ok) throw new Error('Failed to delete card');
       return true;
     },
+
+    addMember: async (boardId, listId, cardId, userId) =>{
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/${cardId}/add_member/`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (!response.ok) throw new Error("Failed to add nember")
+        return response.json();
+    },
+    removeMember: async (boardId, listId, cardId, userId) => {
+      const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/${cardId}/remove_member/`, {
+        method: "POST",
+        headers: getHeaders(),
+        body: JSON.stringify({ user_id: userId }),
+      })
+
+      if (!response.ok) throw new Error("Failed to remove member")
+        return response.json()
+    },
   },
+
+  users: {
+    list: async () =>{
+      const response = await fetch(`${API_URL}/users/`, {
+        headers: getHeaders()
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch users")
+        return response.json()
+    }
+  }
 };
 
 // Níveis de prioridade
