@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { PlusIcon, TrashIcon, XMarkIcon, CalendarIcon, FlagIcon, ChevronDownIcon } from "@heroicons/react/24/solid";
-import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragOverlay, closestCorners, PointerSensor, useSensor, useSensors, useDroppable } from "@dnd-kit/core";
 import {
   SortableContext,
   arrayMove,
@@ -16,21 +17,15 @@ const API_URL = 'http://192.168.0.107:8000/api';
 
 const getAuthToken = () => {
   if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('authToken');
-    // console.log('🔑 Token recuperado:', token); // DEBUG
-    return token;
+    return localStorage.getItem('authToken');
   }
   return null;
 };
 
-const getHeaders = () => {
-  const token = getAuthToken();
-  // console.log('📤 Enviando headers com token:', token); // DEBUG
-  return {
-    'Content-Type': 'application/json',
-    ...(token && { 'Authorization': `Token ${token}` }),
-  };
-};
+const getHeaders = () => ({
+  'Content-Type': 'application/json',
+  'Authorization': `Token ${getAuthToken()}`,
+});
 
 // API Functions
 const api = {
@@ -118,6 +113,23 @@ const PRIORITY_LEVELS = {
   medium: { label: "Média", color: "bg-yellow-500", textColor: "text-yellow-400", borderColor: "border-yellow-500" },
   high: { label: "Alta", color: "bg-orange-500", textColor: "text-orange-400", borderColor: "border-orange-500" },
   urgent: { label: "Urgente", color: "bg-red-500", textColor: "text-red-400", borderColor: "border-red-500" },
+};
+
+const DroppableArea = ({ listId, children }) => {
+  const { setNodeRef, isOver } = useDroppable({
+    id: listId,
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`flex flex-col gap-3 min-h-[100px] transition-colors ${
+        isOver ? 'bg-slate-700/30 rounded-lg' : ''
+      }`}
+    >
+      {children}
+    </div>
+  );
 };
 
 const SortableItem = ({ card, onDelete }) => {
@@ -246,45 +258,65 @@ const App = () => {
 
     if (!over || !activeBoard) return;
 
-    // Encontrar a lista de origem
+    console.log('🎯 Drag end:', { activeId: active.id, overId: over.id });
+
+    // Encontrar a lista de origem (onde o card está)
     let startListId = null;
-    let startList = null;
     for (const list of activeBoard.lists) {
       if (list.cards.find(card => card.id === active.id)) {
         startListId = list.id;
-        startList = list;
+        console.log('📍 Lista de origem:', list.title, 'ID:', startListId);
         break;
       }
+    }
+
+    if (!startListId) {
+      console.error('❌ Lista de origem não encontrada!');
+      return;
     }
 
     // Determinar a lista de destino
-    let endListId = over.id;
-    let endList = null;
+    // 1. Se soltou sobre outro card, pegar a lista desse card
+    // 2. Se soltou sobre uma lista vazia, pegar o ID da lista diretamente
+    let endListId = null;
+    
+    // Primeiro tenta encontrar se over.id é um card
     for (const list of activeBoard.lists) {
       if (list.cards.find(card => card.id === over.id)) {
         endListId = list.id;
-        endList = list;
-        break;
-      }
-      if (list.id === over.id) {
-        endListId = list.id;
-        endList = list;
+        console.log('📍 Solto sobre card, lista destino:', list.title, 'ID:', endListId);
         break;
       }
     }
+    
+    // Se não achou, verifica se over.id é uma lista
+    if (!endListId) {
+      const foundList = activeBoard.lists.find(list => list.id === over.id);
+      if (foundList) {
+        endListId = foundList.id;
+        console.log('📍 Solto sobre lista vazia:', foundList.title, 'ID:', endListId);
+      }
+    }
 
-    if (!startListId || !endListId) return;
+    if (!endListId) {
+      console.error('❌ Lista de destino não encontrada!');
+      return;
+    }
 
     // Se moveu para outra lista, chama a API
     if (startListId !== endListId) {
+      console.log('🚀 Movendo card da lista', startListId, 'para', endListId);
       try {
         await api.cards.move(activeBoard.id, startListId, active.id, endListId);
+        console.log('✅ Card movido com sucesso!');
         // Recarrega o board após mover
         await loadBoardDetail(activeBoard.id);
       } catch (error) {
-        console.error('Error moving card:', error);
+        console.error('❌ Erro ao mover card:', error);
         alert('Erro ao mover card.');
       }
+    } else {
+      console.log('ℹ️ Card solto na mesma lista, nenhuma ação necessária');
     }
   };
 
@@ -317,30 +349,18 @@ const App = () => {
   };
 
   const handleAddList = async () => {
-  if (!newListTitle.trim()) return;
+    if (!newListTitle.trim()) return;
 
-  try {
-    console.log('🔵 Criando lista:', { title: newListTitle });
-    console.log('🔵 Board ID:', activeBoard.id);
-    
-    const result = await api.lists.create(activeBoard.id, { title: newListTitle });
-    
-    console.log('✅ Lista criada:', result);
-    setNewListTitle("");
-    setShowNewListForm(false);
-    await loadBoardDetail(activeBoard.id);
-  } catch (error) {
-    console.error('❌ Erro ao criar lista:', error);
-    
-    // Tentar pegar mais detalhes do erro
-    if (error.response) {
-      const errorData = await error.response.json();
-      console.error('❌ Detalhes do erro:', errorData);
+    try {
+      await api.lists.create(activeBoard.id, { title: newListTitle });
+      setNewListTitle("");
+      setShowNewListForm(false);
+      await loadBoardDetail(activeBoard.id);
+    } catch (error) {
+      console.error('Error creating list:', error);
+      alert('Erro ao criar lista.');
     }
-    
-    alert('Erro ao criar lista.');
-  }
-};
+  };
 
   const handleDeleteList = async (listId) => {
     try {
@@ -401,7 +421,7 @@ const App = () => {
     return diffDays;
   };
 
-  if (loading) {
+   if (loading) {
     return (
       <div className="min-h-screen bg-[#1e293b] flex items-center justify-center">
         <div className="text-white text-xl">Carregando...</div>
@@ -644,9 +664,8 @@ const App = () => {
               <SortableContext
                 items={list.cards.map(card => card.id)}
                 strategy={verticalListSortingStrategy}
-                id={list.id}
               >
-                <div className="flex flex-col gap-3 min-h-[100px]">
+                <DroppableArea listId={list.id}>
                   {list.cards.map((card) => (
                     <SortableItem
                       key={card.id}
@@ -654,7 +673,12 @@ const App = () => {
                       onDelete={handleDeleteCard}
                     />
                   ))}
-                </div>
+                  {list.cards.length === 0 && (
+                    <div className="h-20 border-2 border-dashed border-slate-600 rounded-lg flex items-center justify-center text-slate-500 text-sm">
+                      Arraste os cards aqui
+                    </div>
+                  )}
+                </DroppableArea>
               </SortableContext>
 
               {showNewCardForm === list.id ? (
