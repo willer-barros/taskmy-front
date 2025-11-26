@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,7 +10,6 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Users } from "lucide-react";
 
 // Configuração da API
 const API_URL = 'http://192.168.0.107:8000/api';
@@ -105,38 +103,34 @@ const api = {
       if (!response.ok) throw new Error('Failed to delete card');
       return true;
     },
-
-    addMember: async (boardId, listId, cardId, userId) =>{
+    addMember: async (boardId, listId, cardId, userId) => {
       const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/${cardId}/add_member/`, {
-        method: "POST",
+        method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ user_id: userId }),
       });
-      if (!response.ok) throw new Error("Failed to add nember")
-        return response.json();
+      if (!response.ok) throw new Error('Failed to add member');
+      return response.json();
     },
     removeMember: async (boardId, listId, cardId, userId) => {
       const response = await fetch(`${API_URL}/boards/${boardId}/lists/${listId}/cards/${cardId}/remove_member/`, {
-        method: "POST",
+        method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ user_id: userId }),
-      })
-
-      if (!response.ok) throw new Error("Failed to remove member")
-        return response.json()
+      });
+      if (!response.ok) throw new Error('Failed to remove member');
+      return response.json();
     },
   },
-
   users: {
-    list: async () =>{
+    list: async () => {
       const response = await fetch(`${API_URL}/users/`, {
-        headers: getHeaders()
+        headers: getHeaders(),
       });
-
-      if (!response.ok) throw new Error("Failed to fetch users")
-        return response.json()
-    }
-  }
+      if (!response.ok) throw new Error('Failed to fetch users');
+      return response.json();
+    },
+  },
 };
 
 // Níveis de prioridade
@@ -164,7 +158,7 @@ const DroppableArea = ({ listId, children }) => {
   );
 };
 
-const SortableItem = ({ card, onDelete }) => {
+const SortableItem = ({ card, onDelete, onOpenMembers }) => {
   const {
     attributes,
     listeners,
@@ -203,10 +197,45 @@ const SortableItem = ({ card, onDelete }) => {
         </button>
       </div>
       {card.description && (
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-slate-400 mb-3">
           {card.description}
         </p>
       )}
+      
+      {/* Membros do card */}
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-600">
+        <div className="flex -space-x-2">
+          {card.members && card.members.length > 0 ? (
+            <>
+              {card.members.slice(0, 3).map((member, index) => (
+                <div
+                  key={index}
+                  className="w-7 h-7 rounded-full bg-indigo-600 border-2 border-slate-700 flex items-center justify-center text-white text-xs font-semibold"
+                  title={member}
+                >
+                  {member.charAt(0).toUpperCase()}
+                </div>
+              ))}
+              {card.members.length > 3 && (
+                <div className="w-7 h-7 rounded-full bg-slate-600 border-2 border-slate-700 flex items-center justify-center text-white text-xs">
+                  +{card.members.length - 3}
+                </div>
+              )}
+            </>
+          ) : (
+            <span className="text-xs text-slate-500">Sem responsável</span>
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenMembers(card);
+          }}
+          className="opacity-0 group-hover:opacity-100 text-xs text-indigo-400 hover:text-indigo-300 transition-all"
+        >
+          Atribuir
+        </button>
+      </div>
     </div>
   );
 };
@@ -229,6 +258,9 @@ const App = () => {
     end_date: "",
   });
   const [loading, setLoading] = useState(true);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [availableUsers, setAvailableUsers] = useState([]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -241,6 +273,7 @@ const App = () => {
   // Carregar lista de boards ao montar
   useEffect(() => {
     loadBoards();
+    loadUsers();
   }, []);
 
   // Carregar board completo quando selecionar um
@@ -249,6 +282,15 @@ const App = () => {
       loadBoardDetail(activeBoardId);
     }
   }, [activeBoardId]);
+
+  const loadUsers = async () => {
+    try {
+      const data = await api.users.list();
+      setAvailableUsers(data);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    }
+  };
 
   const loadBoards = async () => {
     try {
@@ -422,6 +464,48 @@ const App = () => {
     }
   };
 
+  const handleAddMember = async (userId) => {
+    if (!selectedCard) return;
+
+    const list = activeBoard.lists.find(l => l.cards.some(c => c.id === selectedCard.id));
+    if (!list) return;
+
+    try {
+      await api.cards.addMember(activeBoard.id, list.id, selectedCard.id, userId);
+      await loadBoardDetail(activeBoard.id);
+      
+      // Atualizar o card selecionado
+      const updatedBoard = await api.boards.get(activeBoard.id);
+      const updatedList = updatedBoard.lists.find(l => l.id === list.id);
+      const updatedCard = updatedList.cards.find(c => c.id === selectedCard.id);
+      setSelectedCard(updatedCard);
+    } catch (error) {
+      console.error('Error adding member:', error);
+      alert('Erro ao adicionar membro.');
+    }
+  };
+
+  const handleRemoveMember = async (userId) => {
+    if (!selectedCard) return;
+
+    const list = activeBoard.lists.find(l => l.cards.some(c => c.id === selectedCard.id));
+    if (!list) return;
+
+    try {
+      await api.cards.removeMember(activeBoard.id, list.id, selectedCard.id, userId);
+      await loadBoardDetail(activeBoard.id);
+      
+      // Atualizar o card selecionado
+      const updatedBoard = await api.boards.get(activeBoard.id);
+      const updatedList = updatedBoard.lists.find(l => l.id === list.id);
+      const updatedCard = updatedList.cards.find(c => c.id === selectedCard.id);
+      setSelectedCard(updatedCard);
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Erro ao remover membro.');
+    }
+  };
+
   const handleDeleteProject = async () => {
     if (boards.length <= 1) {
       alert("Você precisa ter pelo menos um projeto!");
@@ -453,7 +537,7 @@ const App = () => {
     return diffDays;
   };
 
-   if (loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-[#1e293b] flex items-center justify-center">
         <div className="text-white text-xl">Carregando...</div>
@@ -703,6 +787,10 @@ const App = () => {
                       key={card.id}
                       card={card}
                       onDelete={handleDeleteCard}
+                      onOpenMembers={(card) => {
+                        setSelectedCard(card);
+                        setShowMembersModal(true);
+                      }}
                     />
                   ))}
                   {list.cards.length === 0 && (
